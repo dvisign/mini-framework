@@ -22,24 +22,24 @@ export function createElement(vnode) {
 export function diff(oldVNode, newVNode, parent, index = 0) {
   const oldEl = parent.childNodes[index];
 
-  // 1) Mount
+  // Mount
   if (oldVNode === undefined) {
     parent.appendChild(createElement(newVNode));
     return;
   }
-  // 2) Unmount
+  // Unmount
   if (newVNode === undefined) {
     if (oldEl) parent.removeChild(oldEl);
     return;
   }
-  // 3) 텍스트 노드 업데이트
+  // Text node
   if (typeof oldVNode === "string" && typeof newVNode === "string") {
     if (oldVNode !== newVNode) {
       parent.replaceChild(document.createTextNode(newVNode), oldEl);
     }
     return;
   }
-  // 4) 타입 또는 컴포넌트 변경 시 대체
+  // Different type or component
   if (
     typeof oldVNode !== typeof newVNode ||
     oldVNode.tag !== newVNode.tag ||
@@ -48,9 +48,19 @@ export function diff(oldVNode, newVNode, parent, index = 0) {
     parent.replaceChild(createElement(newVNode), oldEl);
     return;
   }
-  // 5) 컴포넌트 내부 렌더링에 맡김
-  if (oldVNode.component) return;
-  // 6) 동일 요소: props diff + children diff
+  // Component node: remount if props changed
+  if (oldVNode.component) {
+    const oldProps = oldVNode.props || {};
+    const newProps = newVNode.props || {};
+    const propsChanged =
+      Object.keys(oldProps).length !== Object.keys(newProps).length ||
+      Object.entries(newProps).some(([k, v]) => oldProps[k] !== v);
+    if (propsChanged) {
+      parent.replaceChild(createElement(newVNode), oldEl);
+    }
+    return;
+  }
+  // Same tag: update attributes & diff children
   updateProps(oldEl, oldVNode.props, newVNode.props);
   const oldLen = oldVNode.children.length;
   const newLen = newVNode.children.length;
@@ -60,11 +70,11 @@ export function diff(oldVNode, newVNode, parent, index = 0) {
 }
 
 function updateProps(el, oldProps = {}, newProps = {}) {
-  // 제거된 속성 삭제
+  // remove old attributes
   Object.keys(oldProps).forEach((key) => {
     if (!(key in newProps)) el.removeAttribute(key);
   });
-  // 추가/변경 속성 설정
+  // add/update new attributes
   Object.entries(newProps).forEach(([key, value]) => {
     if (oldProps[key] !== value) el.setAttribute(key, value);
   });
