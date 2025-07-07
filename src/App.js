@@ -10,8 +10,8 @@ export default function App() {
     template: `
       <div>
         <h1>App</h1>
-        <component is="Counter"></component> 
-        <component is="Input"></component> 
+        <counter></counter>
+        <input></input>
       </div>
     `,
   });

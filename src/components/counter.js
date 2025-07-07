@@ -5,6 +5,7 @@ export default function Counter() {
     setup: () => ({
       count: 0,
       increment() {
+        console.log("this.count", this.count); // ✅ 찍히는가?
         this.count++;
       },
     }),

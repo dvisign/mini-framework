@@ -1,39 +1,39 @@
-import {reactive} from "./reactive.js";
-import {compile} from "./compile.js";
-import {bindEvents} from "./bindEvents.js";
+// /src/lib/ui-kit/core/createComponent.js
+import {parseTemplateToVNode, bindEvents} from "./templateEngine.js";
+import {createElement, diff} from "./virtualDom.js";
 
 export function createComponent({setup, template, components = {}}) {
-  const el = document.createElement("div");
-  let state;
+  // componentMap: 태그명(소문자) → 컴포넌트 함수
+  const componentMap = {};
+  Object.entries(components).forEach(([name, Comp]) => {
+    componentMap[name.toLowerCase()] = Comp;
+  });
 
-  const render = () => {
-    const wrapper = document.createElement("div");
-    wrapper.innerHTML = compile(template, state);
+  const rawState = setup();
+  const state = new Proxy(rawState, {
+    set(target, key, value) {
+      target[key] = value;
+      render();
+      return true;
+    },
+  });
 
-    // component 태그 처리
-    wrapper.querySelectorAll("component[is]").forEach((node) => {
-      const name = node.getAttribute("is");
-      const child = components[name]?.();
-      if (child) node.replaceWith(child);
-    });
+  const container = document.createElement("div");
+  let oldVNode = null;
 
-    // 이벤트 바인딩
-    bindEvents(wrapper, state);
+  function render() {
+    const newVNode = parseTemplateToVNode(template, state, componentMap);
+    if (!oldVNode) {
+      const el = createElement(newVNode);
+      container.innerHTML = "";
+      container.appendChild(el);
+    } else {
+      diff(oldVNode, newVNode, container);
+    }
+    oldVNode = newVNode;
+    bindEvents(container, state);
+  }
 
-    // 📌 input[data-model]의 값만 수동 업데이트 (DOM 그대로 유지)
-    wrapper.querySelectorAll("input[data-model]").forEach((input) => {
-      const key = input.getAttribute("data-model");
-      if (key in state) {
-        input.value = state[key];
-      }
-    });
-
-    // DOM 자식만 교체 (엘리먼트 유지)
-    el.replaceChildren(...wrapper.childNodes);
-  };
-
-  state = reactive(setup(), render);
   render();
-
-  return el;
+  return container;
 }

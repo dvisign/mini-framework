@@ -5,14 +5,17 @@ export default function Input() {
     setup: () => ({
       value: "",
       updateValue(e) {
-        console.log("[Input:updateValue] called", e.target.value); // ✅ 찍히는가?
-        this.value = e.target.value;
+        console.log("Input value changed:", e.target.value);
+        this.value = e.target.value; // Proxy가 감지하고 자동 렌더 호출
       },
     }),
     template: `
       <div>
         <div>{{ value }}</div>
-        <input data-oninput="updateValue" data-model="value" />
+        <input
+          data-onchange="updateValue"
+          value="{{ value }}"
+        />
       </div>
     `,
   });
