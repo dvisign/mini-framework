@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",         // 루트 경로
+    "paths": {
+      "@/*": ["src/*"]      // ex: import x from '@/utils/x.js'
+    }
+  },
+  "include": ["src"]
+}
