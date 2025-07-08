@@ -7,7 +7,6 @@ let GLOBAL_THEME = {};
 
 /**
  * Set global theme CSS by selector definitions or raw CSS string
- * @param {{[selector: string]: object}|string} themeObj
  */
 export function setTheme(themeObj) {
   GLOBAL_THEME = themeObj;
@@ -36,9 +35,8 @@ export function setTheme(themeObj) {
 }
 
 /**
- * Creates a component with automatic prop merging, dynamic styles, and global CSS injection.
- * @param {{ setup?: Function, template: string, components?: object, styles?: Function|object, globalStyles?: object }} options
- * @param {object} [props={}] - initial props to merge into state
+ * Creates a component with lifecycle hooks, props merging, dynamic styles, watchers, and global CSS.
+ * @param {{ setup?: Function, template: string, components?: object, styles?: Function|object, watch?: object, mount?: Function, globalStyles?: object, props?: object }} options
  */
 export function createComponent(options) {
   const {
@@ -47,7 +45,9 @@ export function createComponent(options) {
     components = {},
     styles,
     globalStyles,
-    props,
+    props = {},
+    watch = {},
+    mount,
   } = options;
 
   // Map custom component tags to functions
@@ -74,12 +74,21 @@ export function createComponent(options) {
     document.head.appendChild(styleTag);
   }
 
-  // Merge props into state via setup
+  // Initialize setup data and watchers
   const initial = typeof setup === "function" ? setup(props) : {};
   const rawState = Object.assign({}, props, initial);
+  const watchers = watch;
+  let isMounted = false;
+
+  // State proxy with watcher and re-render logic
   const state = new Proxy(rawState, {
     set(target, key, value) {
+      const oldValue = target[key];
       target[key] = value;
+      // Trigger watcher if exists
+      if (watchers && typeof watchers[key] === "function") {
+        watchers[key].call(state, value, oldValue);
+      }
       render();
       return true;
     },
@@ -90,37 +99,31 @@ export function createComponent(options) {
 
   function applyStyles() {
     if (!styles) return;
-    if (typeof styles === "function") {
-      const result = styles(state, GLOBAL_THEME);
-      Object.entries(result).forEach(([selector, defs]) => {
-        const styleObj = defs;
-        if (!selector) {
-          Object.assign(container.style, styleObj);
-        } else {
-          container
-            .querySelectorAll(selector)
-            .forEach((el) => Object.assign(el.style, styleObj));
-        }
-      });
-    } else if (typeof styles === "object") {
-      Object.entries(styles).forEach(([selector, styleObj]) => {
-        if (!selector) {
-          Object.assign(container.style, styleObj);
-        } else {
-          container
-            .querySelectorAll(selector)
-            .forEach((el) => Object.assign(el.style, styleObj));
-        }
-      });
-    }
+    const result =
+      typeof styles === "function" ? styles(state, GLOBAL_THEME) : styles;
+    Object.entries(result).forEach(([selector, styleObj]) => {
+      if (!selector) {
+        Object.assign(container.style, styleObj);
+      } else {
+        container
+          .querySelectorAll(selector)
+          .forEach((el) => Object.assign(el.style, styleObj));
+      }
+    });
   }
 
   function render() {
     const newVNode = parseTemplateToVNode(template, state, componentMap);
     if (!oldVNode) {
+      // Initial mount
       const el = createElement(newVNode);
       container.innerHTML = "";
       container.appendChild(el);
+      // Call mount hook once
+      if (typeof mount === "function" && !isMounted) {
+        mount.call(state);
+        isMounted = true;
+      }
     } else {
       diff(oldVNode, newVNode, container);
     }

@@ -1,54 +1,89 @@
 // /src/lib/ui-kit/core/templateEngine.js
-// 이벤트 바인딩 중복 방지를 위해 WeakMap 사용 (이미 바인딩된 이벤트 추적)
 const boundEventsMap = new WeakMap();
 
+/**
+ * Parses template string into a VNode tree, supporting conditional and list rendering.
+ */
 export function parseTemplateToVNode(template, state, components) {
-  // 1. {{ key }} 바인딩
-  const html = template.replace(
-    /{{\s*(\w+)\s*}}/g,
-    (_, key) => state[key] ?? ""
-  );
   const wrapper = document.createElement("div");
-  wrapper.innerHTML = html.trim();
+  wrapper.innerHTML = template.trim();
 
-  // DOM -> VNode 변환 (재귀)
-  function domToVNode(node) {
-    // 텍스트 노드
+  function interpolate(val, localState) {
+    return typeof val === "string"
+      ? val.replace(/{{\s*(\w+)\s*}}/g, (_, key) => localState[key] ?? "")
+      : val;
+  }
+
+  function domToVNode(node, localState) {
+    // Text nodes: interpolate placeholders
     if (node.nodeType === Node.TEXT_NODE) {
-      return node.textContent;
+      return interpolate(node.textContent, localState);
     }
-    const tag = node.tagName.toLowerCase();
+    // Ignore non-element nodes
+    if (node.nodeType !== Node.ELEMENT_NODE) {
+      return undefined;
+    }
 
-    // 커스텀 컴포넌트 처리
+    // Conditional rendering via data-if
+    if (node.hasAttribute("data-if")) {
+      const cond = node.getAttribute("data-if").trim();
+      if (!localState[cond]) return undefined;
+    }
+
+    // List rendering via data-for="item in items"
+    if (node.hasAttribute("data-for")) {
+      const expr = node.getAttribute("data-for");
+      const [itemName, listName] = expr.split(/ in /).map((s) => s.trim());
+      const list = localState[listName] || [];
+      return list.flatMap((itemValue) => {
+        const clone = node.cloneNode(true);
+        clone.removeAttribute("data-for");
+        const scopedState = new Proxy(localState, {
+          get(target, key) {
+            if (key === itemName) return itemValue;
+            return target[key];
+          },
+        });
+        return domToVNode(clone, scopedState);
+      });
+    }
+
+    const tag = node.tagName.toLowerCase();
+    // Custom component
     if (components[tag]) {
       const props = {};
       Array.from(node.attributes).forEach(({name, value}) => {
         if (name.startsWith(":")) {
-          // 동적 바인딩 (props명: state 키)
-          props[name.slice(1)] = state[value];
-        } else {
-          props[name] = value;
+          props[name.slice(1)] = localState[value];
+        } else if (name !== "data-if" && name !== "data-for") {
+          props[name] = interpolate(value, localState);
         }
       });
-      // 자식 VNode 필요 시 포함
-      const children = Array.from(node.childNodes).map(domToVNode);
+      const children = Array.from(node.childNodes)
+        .map((n) => domToVNode(n, localState))
+        .flat()
+        .filter((n) => n !== undefined);
       return {component: components[tag], props, children};
     }
 
-    // 일반 DOM 요소 처리
+    // Regular DOM element
     const props = {};
     Array.from(node.attributes).forEach(({name, value}) => {
-      props[name] = value;
+      if (name !== "data-if" && name !== "data-for") {
+        props[name] = interpolate(value, localState);
+      }
     });
-    const children = Array.from(node.childNodes).map(domToVNode);
+    const children = Array.from(node.childNodes)
+      .map((n) => domToVNode(n, localState))
+      .flat()
+      .filter((n) => n !== undefined);
     return {tag, props, children};
   }
 
-  return domToVNode(wrapper.firstElementChild);
+  return domToVNode(wrapper.firstElementChild, state);
 }
 
 export function bindEvents(root, state) {
-  // 모든 data-on* 속성 이벤트 바인딩
   root.querySelectorAll("*").forEach((el) => {
     Array.from(el.attributes).forEach(({name, value}) => {
       if (!name.startsWith("data-on")) return;
@@ -56,15 +91,12 @@ export function bindEvents(root, state) {
       const eventType = eventKey === "change" ? "input" : eventKey;
       const handler = state[value];
       if (typeof handler !== "function") return;
-
-      // 중복 바인딩 방지
       let boundSet = boundEventsMap.get(el);
       if (!boundSet) {
         boundSet = new Set();
         boundEventsMap.set(el, boundSet);
       }
       if (boundSet.has(name)) return;
-
       el.addEventListener(eventType, handler.bind(state));
       boundSet.add(name);
     });

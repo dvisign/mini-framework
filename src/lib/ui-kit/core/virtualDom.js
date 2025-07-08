@@ -13,7 +13,12 @@ export function createElement(vnode) {
   const {tag, props = {}, children = []} = vnode;
   const el = document.createElement(tag);
   Object.entries(props).forEach(([k, v]) => {
-    el.setAttribute(k, v);
+    // input, textarea 등 value 프로퍼티를 직접 갱신
+    if (k === "value" && "value" in el) {
+      el.value = v;
+    } else {
+      el.setAttribute(k, v);
+    }
   });
   children.forEach((child) => el.appendChild(createElement(child)));
   return el;
@@ -76,6 +81,12 @@ function updateProps(el, oldProps = {}, newProps = {}) {
   });
   // add/update new attributes
   Object.entries(newProps).forEach(([key, value]) => {
-    if (oldProps[key] !== value) el.setAttribute(key, value);
+    if (oldProps[key] !== value) {
+      if (key === "value" && "value" in el) {
+        el.value = value;
+      } else {
+        el.setAttribute(key, value);
+      }
+    }
   });
 }
