@@ -180,6 +180,14 @@ export default function PostIt(props) {
         gap: "8px",
         textAlign: "center",
       },
+      ".close-button-wrapper": {
+        display: "flex",
+        justifyContent: "end",
+        width: "100%",
+      },
+      ".close-button": {
+        color: "#fff",
+      },
       ".color-option": {
         width: "100%",
         borderRadius: "5px",
@@ -220,7 +228,10 @@ export default function PostIt(props) {
           </div>
         </div>
         <div data-if="colorPickerOpen" class="color-dialog">
-        <div data-for="color in colorList" class="color-option">
+          <div class="close-button-wrapper">
+            <button class="close-button" data-onclick="toggleColorPicker">✕</button>
+          </div>
+          <div data-for="color in colorList" class="color-option">
             <button style="background:{{value}}; display:block; width:100%;opacity:{{isSelected}}" data-color="{{ name }}" data-onclick="handleColorChange">{{label}}</button>
           </div>
         </div>
