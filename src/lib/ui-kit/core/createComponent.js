@@ -7,6 +7,7 @@ let GLOBAL_THEME = {};
 
 /**
  * Set global theme CSS by selector definitions or raw CSS string
+ * @param {{[selector: string]: object}|string} themeObj
  */
 export function setTheme(themeObj) {
   GLOBAL_THEME = themeObj;
@@ -35,7 +36,7 @@ export function setTheme(themeObj) {
 }
 
 /**
- * Creates a component with lifecycle hooks, props merging, dynamic styles, watchers, and global CSS.
+ * Creates a component with lifecycle hooks, props merging, dynamic styles, watchers, global CSS, and refs
  * @param {{ setup?: Function, template: string, components?: object, styles?: Function|object, watch?: object, mount?: Function, globalStyles?: object, props?: object }} options
  */
 export function createComponent(options) {
@@ -80,18 +81,25 @@ export function createComponent(options) {
   const watchers = watch;
   let isMounted = false;
 
+  // Refs collection
+  const refs = {};
+
   // State proxy with watcher and re-render logic
   const state = new Proxy(rawState, {
     set(target, key, value) {
       const oldValue = target[key];
       target[key] = value;
-      // Trigger watcher if exists
       if (watchers && typeof watchers[key] === "function") {
         watchers[key].call(state, value, oldValue);
       }
       render();
       return true;
     },
+  });
+
+  // Expose $refs on state
+  Object.defineProperty(state, "$refs", {
+    get: () => refs,
   });
 
   const container = document.createElement("div");
@@ -112,20 +120,27 @@ export function createComponent(options) {
     });
   }
 
+  function updateRefs() {
+    container.querySelectorAll("[data-ref]").forEach((el) => {
+      const name = el.getAttribute("data-ref");
+      if (name) refs[name] = el;
+    });
+  }
+
   function render() {
     const newVNode = parseTemplateToVNode(template, state, componentMap);
     if (!oldVNode) {
-      // Initial mount
       const el = createElement(newVNode);
       container.innerHTML = "";
       container.appendChild(el);
-      // Call mount hook once
+      updateRefs();
       if (typeof mount === "function" && !isMounted) {
         mount.call(state);
         isMounted = true;
       }
     } else {
       diff(oldVNode, newVNode, container);
+      updateRefs();
     }
     oldVNode = newVNode;
     applyStyles();

@@ -1,19 +1,15 @@
-// App.js
+// /src/App.js
 import {createComponent} from "@/lib/ui-kit/core/createComponent.js";
-import Counter from "@/components/counter.js";
-import Input from "@/components/input.js";
-import Example from "@/components/example.js";
+import PostItBoard from "@/components/postItBoard.js";
 
 export default function App() {
   return createComponent({
-    setup: () => ({}),
-    components: {Counter, Input, Example}, // 추가
+    setup: () => ({}), // 초기 상태 없음
+    components: {PostItBoard},
     template: `
       <div>
-        <h1>App</h1>
-        <counter></counter>
-        <input></input>
-        <example></example>
+        <h1>🗒️ Post-it Board</h1>
+        <postitboard></postitboard>
       </div>
     `,
   });

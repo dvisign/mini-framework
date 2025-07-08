@@ -15,25 +15,31 @@ export function parseTemplateToVNode(template, state, components) {
   }
 
   function domToVNode(node, localState) {
-    // Text nodes: interpolate placeholders
     if (node.nodeType === Node.TEXT_NODE) {
       return interpolate(node.textContent, localState);
     }
-    // Ignore non-element nodes
     if (node.nodeType !== Node.ELEMENT_NODE) {
       return undefined;
     }
 
-    // Conditional rendering via data-if
     if (node.hasAttribute("data-if")) {
-      const cond = node.getAttribute("data-if").trim();
-      if (!localState[cond]) return undefined;
+      const expr = node.getAttribute("data-if").trim();
+      try {
+        // Function으로 안전하게 표현식 평가
+        const fn = new Function(...Object.keys(localState), `return (${expr})`);
+        const result = fn(...Object.values(localState));
+        if (!result) return undefined;
+      } catch (err) {
+        console.warn("data-if 오류:", expr, err);
+        return undefined;
+      }
     }
 
-    // List rendering via data-for="item in items"
     if (node.hasAttribute("data-for")) {
-      const expr = node.getAttribute("data-for");
-      const [itemName, listName] = expr.split(/ in /).map((s) => s.trim());
+      const [itemName, listName] = node
+        .getAttribute("data-for")
+        .split(/ in /)
+        .map((s) => s.trim());
       const list = localState[listName] || [];
       return list.flatMap((itemValue) => {
         const clone = node.cloneNode(true);
@@ -41,6 +47,7 @@ export function parseTemplateToVNode(template, state, components) {
         const scopedState = new Proxy(localState, {
           get(target, key) {
             if (key === itemName) return itemValue;
+            if (itemValue && key in itemValue) return itemValue[key];
             return target[key];
           },
         });
@@ -49,24 +56,36 @@ export function parseTemplateToVNode(template, state, components) {
     }
 
     const tag = node.tagName.toLowerCase();
-    // Custom component
+
+    // **CUSTOM COMPONENT** 분기
     if (components[tag]) {
       const props = {};
       Array.from(node.attributes).forEach(({name, value}) => {
         if (name.startsWith(":")) {
-          props[name.slice(1)] = localState[value];
+          const raw = name.slice(1);
+          const propName = raw.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+
+          const actualValue = localState[value];
+
+          // ✅ 함수면 자동으로 localState(this)에 bind
+          props[propName] =
+            typeof actualValue === "function"
+              ? actualValue.bind(localState)
+              : actualValue;
         } else if (name !== "data-if" && name !== "data-for") {
           props[name] = interpolate(value, localState);
         }
       });
+
       const children = Array.from(node.childNodes)
         .map((n) => domToVNode(n, localState))
         .flat()
         .filter((n) => n !== undefined);
+
       return {component: components[tag], props, children};
     }
 
-    // Regular DOM element
+    // **REGULAR ELEMENT**
     const props = {};
     Array.from(node.attributes).forEach(({name, value}) => {
       if (name !== "data-if" && name !== "data-for") {
