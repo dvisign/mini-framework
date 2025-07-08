@@ -52,11 +52,17 @@ export default function PostItBoard() {
         },
         updateNoteColor(id, newColor) {
           const note = this.notes.find((n) => n.id === id);
-          if (note) note.color = newColor;
+          if (note) {
+            note.color = NOTE_COLORS[newColor].value;
+            this.notes = [...this.notes]; // ✅ 이렇게 해야 리렌더 트리거됨
+          }
         },
         updateNoteText(id, newText) {
           const note = this.notes.find((n) => n.id === id);
-          if (note) note.text = newText; // 객체 내부 속성만 변경
+          if (note) {
+            note.text = newText; // 객체 내부 속성만 변경
+            this.notes = [...this.notes]; // ✅ 이렇게 해야 리렌더 트리거됨
+          }
         },
       };
     },

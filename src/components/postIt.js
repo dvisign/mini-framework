@@ -11,18 +11,25 @@ export default function PostIt(props) {
     setup({
       createdAt,
       text,
-      color,
       onUpdateText,
       onDuplicate,
       onRemove,
       onChangeColor,
       id,
+      color,
     }) {
       return {
         formattedCreatedAt: createdAt ? formatDate(createdAt) : "",
         isEditing: true,
         text,
         menuOpen: false,
+        colorList: NOTE_COLOR_OPTIONS.map((item) => {
+          return {
+            ...item,
+            isSelected: item.value === color ? 1 : 0.5, // JS에서 비교
+          };
+        }),
+        colorPickerOpen: false,
         toggleMenu() {
           this.menuOpen = !this.menuOpen;
         },
@@ -41,14 +48,17 @@ export default function PostIt(props) {
           onRemove(id);
           this.menuOpen = false;
         },
-        changeColor() {
-          const currentIndex = NOTE_COLOR_OPTIONS.findIndex(
-            (c) => c.value === color
-          );
-          const next =
-            NOTE_COLOR_OPTIONS[(currentIndex + 1) % NOTE_COLOR_OPTIONS.length];
-          onChangeColor(id, next.value);
+        toggleColorPicker() {
+          this.colorPickerOpen = !this.colorPickerOpen;
           this.menuOpen = false;
+        },
+        handleColorChange(e) {
+          const selectedColor = e.currentTarget.dataset.color;
+          console.log("선택된 색상:", selectedColor);
+
+          // const selectedColor = e.target.value;
+          onChangeColor(id, selectedColor);
+          // this.colorPickerOpen = false;
         },
         handleTextChange(e) {
           const newText = e.target.value;
@@ -106,6 +116,9 @@ export default function PostIt(props) {
           }, 0);
         }
       },
+      color(newVal) {
+        console.log(newVal);
+      },
     },
     styles: ({x, y, width, height, color}) => ({
       "": {
@@ -147,6 +160,33 @@ export default function PostIt(props) {
       ".dropdown-menu > div:last-child": {
         borderBottom: "none",
       },
+      ".color-dialog": {
+        position: "absolute",
+        width: "80%",
+        height: "50%",
+        left: "50%",
+        top: "50%",
+        transform: "translate(-50%, -50%)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexWrap: "wrap",
+        padding: "8px",
+        background: "rgba(0, 0, 0, 0.5)",
+        border: "1px solid #ccc",
+        borderRadius: "4px",
+        boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
+        zIndex: 20,
+        gap: "8px",
+        textAlign: "center",
+      },
+      ".color-option": {
+        width: "100%",
+        borderRadius: "5px",
+        background: "#fff",
+        border: "1px solid #aaa",
+        cursor: "pointer",
+      },
       ".post-it-header strong": {
         display: "block",
       },
@@ -174,9 +214,14 @@ export default function PostIt(props) {
           <button data-ref="menuBtn" data-onclick="toggleMenu">⋯</button>
           <div data-if="menuOpen" class="dropdown-menu">
             <div data-onclick="isEdit">수정</div>
-            <div data-onclick="changeColor">색상변경</div>
+            <div data-onclick="toggleColorPicker">색상변경</div>
             <div data-onclick="duplicate">복제</div>
             <div data-onclick="remove">삭제</div>
+          </div>
+        </div>
+        <div data-if="colorPickerOpen" class="color-dialog">
+        <div data-for="color in colorList" class="color-option">
+            <button style="background:{{value}}; display:block; width:100%;opacity:{{isSelected}}" data-color="{{ name }}" data-onclick="handleColorChange">{{label}}</button>
           </div>
         </div>
         <div data-if="isEditing" class="textarea-container">
