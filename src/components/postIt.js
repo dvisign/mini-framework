@@ -30,6 +30,7 @@ export default function PostIt(props) {
           };
         }),
         colorPickerOpen: false,
+        isCollapsed: false,
         toggleMenu() {
           this.menuOpen = !this.menuOpen;
         },
@@ -73,6 +74,9 @@ export default function PostIt(props) {
           if (e.type === "click" && !this.$refs.root.contains(e.target)) {
             this.isEditing = false;
           }
+        },
+        toggleCollapse() {
+          this.isCollapsed = !this.isCollapsed;
         },
       };
     },
@@ -126,7 +130,6 @@ export default function PostIt(props) {
         left: `${x}px`,
         top: `${y}px`,
         width: `${width}px`,
-        height: `${height}px`,
         background: `${color}`,
         padding: "8px",
         boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
@@ -204,7 +207,7 @@ export default function PostIt(props) {
       },
       textarea: {
         width: "100%",
-        height: "calc(100% - 32px)",
+        height: `calc(${height}px - 32px)`,
         resize: "none",
         overflow: "auto",
         fontFamily: "inherit",
@@ -218,6 +221,9 @@ export default function PostIt(props) {
     template: `
       <div data-ref="root" class="post-its">
         <div class="post-it-header">
+          <button data-onclick="toggleCollapse">
+            {{ isCollapsed ? '▼ 펼치기' : '▲ 접기' }}
+          </button>
           <strong>메모 {{ id }} – {{ formattedCreatedAt }}</strong>
           <button data-ref="menuBtn" data-onclick="toggleMenu">⋯</button>
           <div data-if="menuOpen" class="dropdown-menu">
@@ -235,15 +241,17 @@ export default function PostIt(props) {
             <button style="background:{{value}}; display:block; width:100%;opacity:{{isSelected}}" data-color="{{ name }}" data-onclick="handleColorChange">{{label}}</button>
           </div>
         </div>
-        <div data-if="isEditing" class="textarea-container">
-          <textarea
-            data-ref="textarea"
-            maxlength="1000"
-            data-oninput="handleTextChange"
-          >{{ text }}</textarea>
-        </div>
-        <div data-if="!isEditing">
-          <div>{{ text }}</div>
+        <div data-if="!isCollapsed && isEditing">
+          <div data-if="isEditing" class="textarea-container">
+            <textarea
+              data-ref="textarea"
+              maxlength="1000"
+              data-oninput="handleTextChange"
+            >{{ text }}</textarea>
+          </div>
+          <div data-if="!isEditing">
+            <div>{{ text }}</div>
+          </div>  
         </div>
       </div>
     `,
