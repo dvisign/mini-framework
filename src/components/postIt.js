@@ -1,25 +1,61 @@
 // /src/components/PostIt.js
 import {createComponent} from "@/lib/ui-kit/core/createComponent.js";
 import {formatDate} from "@/utils/index.js";
+import {NOTE_COLOR_OPTIONS} from "@/constants/index.js";
 
 const handlerMap = new Map();
 
 export default function PostIt(props) {
   return createComponent({
     props,
-    setup({createdAt, text}) {
+    setup({
+      createdAt,
+      text,
+      color,
+      onUpdateText,
+      onDuplicate,
+      onRemove,
+      onChangeColor,
+      id,
+    }) {
       return {
         formattedCreatedAt: createdAt ? formatDate(createdAt) : "",
         isEditing: true,
         text,
+        menuOpen: false,
+        toggleMenu() {
+          this.menuOpen = !this.menuOpen;
+        },
+        changeColor() {
+          // 색상 변경 로직 (예: 랜덤 색상 또는 순환)
+        },
+        isEdit() {
+          this.isEditing = true;
+          this.menuOpen = false;
+        },
+        duplicate() {
+          onDuplicate(id);
+          this.menuOpen = false;
+        },
+        remove() {
+          onRemove(id);
+          this.menuOpen = false;
+        },
+        changeColor() {
+          const currentIndex = NOTE_COLOR_OPTIONS.findIndex(
+            (c) => c.value === color
+          );
+          const next =
+            NOTE_COLOR_OPTIONS[(currentIndex + 1) % NOTE_COLOR_OPTIONS.length];
+          onChangeColor(id, next.value);
+          this.menuOpen = false;
+        },
         handleTextChange(e) {
           const newText = e.target.value;
-          this.text = newText;
-          // onTextChange(id, newText);
+          onUpdateText(id, newText);
         },
         handleEscape(e) {
-          console.log("e.type", e.type);
-
+          e.stopPropagation();
           if (e.type === "keydown" && e.key === "Escape") {
             this.isEditing = false;
           }
@@ -35,7 +71,7 @@ export default function PostIt(props) {
         const textarea = this.$refs.textarea;
         if (textarea) {
           textarea.focus();
-          textarea.selectionStart = 0;
+          textarea.selectionStart = this.text.length;
           textarea.selectionEnd = this.text.length;
         }
 
@@ -51,39 +87,68 @@ export default function PostIt(props) {
     },
     watch: {
       isEditing(newVal) {
-        if (!newVal) {
-          const bound = handlerMap.get(this);
-          if (bound) {
-            window.removeEventListener("keydown", bound);
-            window.removeEventListener("click", bound);
-            handlerMap.delete(this); // 메모리 누수 방지
-          }
-        } else {
+        const prevBound = handlerMap.get(this);
+        if (prevBound) {
+          window.removeEventListener("keydown", prevBound);
+          window.removeEventListener("click", prevBound);
+          handlerMap.delete(this);
+        }
+
+        if (newVal) {
           const bound = this.handleEscape.bind(this);
-          handlerMap.set(this, bound); // this 컴포넌트를 키로 저장
+          handlerMap.set(this, bound);
+
           window.addEventListener("keydown", bound);
-          window.addEventListener("click", bound);
+
+          // 다음 틱에서 클릭 이벤트 등록 (현재 클릭이벤트 무시)
+          setTimeout(() => {
+            window.addEventListener("click", bound);
+          }, 0);
         }
       },
     },
-    styles: ({x, y, width, height}) => ({
+    styles: ({x, y, width, height, color}) => ({
       "": {
         position: "absolute",
         left: `${x}px`,
         top: `${y}px`,
         width: `${width}px`,
         height: `${height}px`,
-        background: "#fffa75",
+        background: `${color}`,
         padding: "8px",
         boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
-        overflow: "hidden",
       },
       ".post-its": {
         height: "100%",
       },
-      strong: {
-        display: "block",
+      ".post-it-header": {
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        position: "relative",
         marginBottom: "10px",
+      },
+      ".dropdown-menu": {
+        position: "absolute",
+        top: "100%",
+        left: "100%",
+        width: "150px",
+        background: "#fff",
+        border: "1px solid #ccc",
+        borderRadius: "4px",
+        boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
+        zIndex: 10,
+      },
+      ".dropdown-menu > div": {
+        padding: "6px 12px",
+        cursor: "pointer",
+        borderBottom: "1px solid #eee",
+      },
+      ".dropdown-menu > div:last-child": {
+        borderBottom: "none",
+      },
+      ".post-it-header strong": {
+        display: "block",
       },
       ".textarea-container": {
         position: "relative",
@@ -104,7 +169,16 @@ export default function PostIt(props) {
     }),
     template: `
       <div data-ref="root" class="post-its">
-        <strong>메모 {{ id }} – {{ formattedCreatedAt }}</strong>
+        <div class="post-it-header">
+          <strong>메모 {{ id }} – {{ formattedCreatedAt }}</strong>
+          <button data-ref="menuBtn" data-onclick="toggleMenu">⋯</button>
+          <div data-if="menuOpen" class="dropdown-menu">
+            <div data-onclick="isEdit">수정</div>
+            <div data-onclick="changeColor">색상변경</div>
+            <div data-onclick="duplicate">복제</div>
+            <div data-onclick="remove">삭제</div>
+          </div>
+        </div>
         <div data-if="isEditing" class="textarea-container">
           <textarea
             data-ref="textarea"

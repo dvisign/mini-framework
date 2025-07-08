@@ -1,6 +1,7 @@
 /* /src/components/PostItBoard.js */
 import {createComponent} from "@/lib/ui-kit/core/createComponent.js";
 import PostIt from "@/components/postIt.js";
+import {NOTE_COLORS} from "@/constants/index.js"; // 색상 옵션 가져오기
 
 export default function PostItBoard() {
   return createComponent({
@@ -22,14 +23,41 @@ export default function PostItBoard() {
               y: 20,
               width: 300,
               height: 400,
+              color: NOTE_COLORS.yellow.value,
             },
           ];
         },
-        // updateNoteText(id, newText) {
-        //   const note = this.notes.find((n) => n.id === id);
-        //   if (note) note.text = newText; // 객체 내부 속성만 변경
-        //   console.log(this);
-        // },
+        duplicateNote(id) {
+          const target = this.notes.find((n) => n.id === id);
+          if (!target) return;
+          const now = new Date();
+          const newId = nextId++;
+          const length = this.notes.length;
+
+          const newNote = {
+            ...structuredClone(target),
+            id: newId,
+            createdAt: now,
+            text: target.text, // 텍스트 유지
+            x: 20 * newId + length * 300, // ⬅️ 위치 계산 로직 재사용
+            y: 20,
+            width: 300,
+            height: 400,
+          };
+
+          this.notes = [...this.notes, newNote];
+        },
+        removePostIt(id) {
+          this.notes = this.notes.filter((note) => note.id !== id);
+        },
+        updateNoteColor(id, newColor) {
+          const note = this.notes.find((n) => n.id === id);
+          if (note) note.color = newColor;
+        },
+        updateNoteText(id, newText) {
+          const note = this.notes.find((n) => n.id === id);
+          if (note) note.text = newText; // 객체 내부 속성만 변경
+        },
       };
     },
     components: {PostIt},
@@ -69,6 +97,11 @@ export default function PostItBoard() {
             :y="y"
             :width="width"
             :height="height"
+            :color="color"
+            :on-update-text="updateNoteText"
+            :on-remove="removePostIt"
+            :on-duplicate="duplicateNote"
+            :on-change-color="updateNoteColor"
           ></postit>
         </div>
       </div>
