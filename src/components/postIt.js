@@ -1,4 +1,3 @@
-// /src/components/PostIt.js
 import {createComponent} from "@/lib/ui-kit/core/createComponent.js";
 import {formatDate} from "@/utils/index.js";
 import {NOTE_COLOR_OPTIONS} from "@/constants/index.js";
@@ -11,16 +10,20 @@ export default function PostIt(props) {
     setup({
       createdAt,
       text,
+      isNew,
       onUpdateText,
       onDuplicate,
       onRemove,
       onChangeColor,
+      onMove,
       id,
       color,
+      x,
+      y,
     }) {
       return {
         formattedCreatedAt: createdAt ? formatDate(createdAt) : "",
-        isEditing: true,
+        isEditing: isNew,
         text,
         menuOpen: false,
         colorList: NOTE_COLOR_OPTIONS.map((item) => {
@@ -31,15 +34,27 @@ export default function PostIt(props) {
         }),
         colorPickerOpen: false,
         isCollapsed: false,
+        isDragging: false,
+        dragStartX: 0,
+        dragStartY: 0,
+        dragOriginX: 0,
+        dragOriginY: 0,
+        dragDeltaX: 0,
+        dragDeltaY: 0,
         toggleMenu() {
           this.menuOpen = !this.menuOpen;
-        },
-        changeColor() {
-          // 색상 변경 로직 (예: 랜덤 색상 또는 순환)
         },
         isEdit() {
           this.isEditing = true;
           this.menuOpen = false;
+          setTimeout(() => {
+            const textarea = this.$refs.textarea;
+            if (textarea) {
+              textarea.focus();
+              textarea.selectionStart = this.text.length;
+              textarea.selectionEnd = this.text.length;
+            }
+          }, 0);
         },
         duplicate() {
           onDuplicate(id);
@@ -55,7 +70,6 @@ export default function PostIt(props) {
         },
         handleColorChange(e) {
           const selectedColor = e.currentTarget.dataset.color;
-          console.log("선택된 색상:", selectedColor);
 
           // const selectedColor = e.target.value;
           onChangeColor(id, selectedColor);
@@ -66,7 +80,7 @@ export default function PostIt(props) {
           onUpdateText(id, newText);
         },
         handleEscape(e) {
-          e.stopPropagation();
+          // e.stopPropagation();
           if (e.type === "keydown" && e.key === "Escape") {
             this.isEditing = false;
           }
@@ -77,6 +91,47 @@ export default function PostIt(props) {
         },
         toggleCollapse() {
           this.isCollapsed = !this.isCollapsed;
+        },
+        handleHeaderMouseDown(e) {
+          this.isDragging = true;
+          this.dragStartX = e.clientX;
+          this.dragStartY = e.clientY;
+          this.dragOriginX = x;
+          this.dragOriginY = y;
+          this.dragDeltaX = 0;
+          this.dragDeltaY = 0;
+          const mousemoveBind = this.handleHeaderMouseMove.bind(this);
+          const mouseUpBind = this.handleHeaderMouseUp.bind(this);
+          const header = this.$refs.root;
+          header.addEventListener("mousemove", mousemoveBind);
+          header.addEventListener("mouseup", mouseUpBind);
+        },
+        handleHeaderMouseMove(e) {
+          if (!this.isDragging) return;
+          this.dragDeltaX = e.clientX - this.dragStartX;
+          this.dragDeltaY = e.clientY - this.dragStartY;
+        },
+        handleHeaderMouseUp(e) {
+          if (!this.isDragging) return;
+          this.isDragging = false;
+          document.body.style.userSelect = "";
+
+          const finalX = this.dragOriginX + this.dragDeltaX;
+          const finalY = this.dragOriginY + this.dragDeltaY;
+
+          if (
+            (this.dragDeltaX !== 0 || this.dragDeltaY !== 0) &&
+            typeof onMove === "function"
+          ) {
+            onMove(id, finalX, finalY);
+          }
+
+          this.dragStartX = 0;
+          this.dragStartY = 0;
+          this.dragOriginX = 0;
+          this.dragOriginY = 0;
+          this.dragDeltaX = 0;
+          this.dragDeltaY = 0;
         },
       };
     },
@@ -93,9 +148,11 @@ export default function PostIt(props) {
         handlerMap.set(this, bound);
         window.addEventListener("keydown", bound);
 
-        // ⚠️ click 이벤트는 다음 틱에 등록해야 현재 클릭을 무시함
         setTimeout(() => {
           window.addEventListener("click", bound);
+          const header = this.$refs.root;
+          const mousedownBinding = this.handleHeaderMouseDown.bind(this);
+          header.addEventListener("mousedown", mousedownBinding);
         }, 0);
       }, 0);
     },
@@ -124,25 +181,29 @@ export default function PostIt(props) {
         console.log(newVal);
       },
     },
-    styles: ({x, y, width, height, color}) => ({
-      "": {
+    styles: ({x, y, width, height, color, zIndex}) => ({
+      "": {},
+      ".post-its": {
         position: "absolute",
-        left: `${x}px`,
-        top: `${y}px`,
+        left: `${x + (this.isDragging ? this.dragDeltaX : 0)}px`,
+        top: `${y + (this.isDragging ? this.dragDeltaY : 0)}px`,
         width: `${width}px`,
         background: `${color}`,
         padding: "8px",
         boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
+        zIndex: zIndex || 0,
+        opacity: this.isDragging ? 0.9 : 1,
+        transition: this.isDragging ? "none" : "left 0.2s, top 0.2s",
+        cursor: this.isDragging ? "grabbing" : "grab",
       },
-      ".post-its": {
-        height: "100%",
-      },
+      ".post-its.on": {height: `${height}px`},
+      ".post-its.off": {height: `auto`},
       ".post-it-header": {
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
         position: "relative",
-        marginBottom: "10px",
+        cursor: this.isDragging ? "grabbing" : "grab",
       },
       ".dropdown-menu": {
         position: "absolute",
@@ -201,13 +262,17 @@ export default function PostIt(props) {
       ".post-it-header strong": {
         display: "block",
       },
+      ".text-wrapper": {
+        height: "calc(100% - 50px)",
+        marginTop: "10px",
+      },
       ".textarea-container": {
         position: "relative",
         height: "100%",
       },
       textarea: {
         width: "100%",
-        height: `calc(${height}px - 32px)`,
+        height: "100%",
         resize: "none",
         overflow: "auto",
         fontFamily: "inherit",
@@ -217,12 +282,22 @@ export default function PostIt(props) {
         background: "transparent",
         border: "1px solid #ccc",
       },
+      ".text-container": {
+        width: "100%",
+        height: "100%",
+        resize: "none",
+        overflow: "auto",
+      },
+      ".text-length": {
+        display: "flex",
+        justifyContent: "end",
+      },
     }),
     template: `
-      <div data-ref="root" class="post-its">
+      <div data-ref="root" draggable="true" class="post-its {{ isCollapsed ? 'off' : 'on' }}">
         <div class="post-it-header">
           <button data-onclick="toggleCollapse">
-            {{ isCollapsed ? '▼ 펼치기' : '▲ 접기' }}
+            {{ isCollapsed ? "▼" : "▲" }}
           </button>
           <strong>메모 {{ id }} – {{ formattedCreatedAt }}</strong>
           <button data-ref="menuBtn" data-onclick="toggleMenu">⋯</button>
@@ -237,11 +312,11 @@ export default function PostIt(props) {
           <div class="close-button-wrapper">
             <button class="close-button" data-onclick="toggleColorPicker">✕</button>
           </div>
-          <div data-for="color in colorList" class="color-option">
-            <button style="background:{{value}}; display:block; width:100%;opacity:{{isSelected}}" data-color="{{ name }}" data-onclick="handleColorChange">{{label}}</button>
+          <div data-for="color in colorList" data-key="color.label" class="color-option">
+            <button style="background:{{color.value}}; display:block; width:100%;opacity:{{color.isSelected}}" data-color="{{ color.name }}" data-onclick="handleColorChange">{{color.label}}</button>
           </div>
         </div>
-        <div data-if="!isCollapsed && isEditing">
+        <div data-if="!isCollapsed" class="text-wrapper">
           <div data-if="isEditing" class="textarea-container">
             <textarea
               data-ref="textarea"
@@ -249,9 +324,10 @@ export default function PostIt(props) {
               data-oninput="handleTextChange"
             >{{ text }}</textarea>
           </div>
-          <div data-if="!isEditing">
+          <div data-if="!isEditing" class="text-container">
             <div>{{ text }}</div>
-          </div>  
+          </div>
+          <div class="text-length">${props.text.length || 0}/1000</div>
         </div>
       </div>
     `,

@@ -1,8 +1,3 @@
-/**
- * Date 객체를 "YYYY-MM-DD HH:mm:ss" 형식의 문자열로 반환합니다.
- * @param {Date} date
- * @returns {string}
- */
 export function formatDate(date) {
   if (!(date instanceof Date)) return "";
   const pad = (n) => n.toString().padStart(2, "0");

@@ -1,7 +1,6 @@
 import App from "./app.js";
 import {setTheme} from "@/lib/ui-kit/core/createComponent.js";
 
-// 전역 Reset 스타일을 객체 매핑으로 전달
 setTheme({
   "html, body": {
     fontWeight: "300",

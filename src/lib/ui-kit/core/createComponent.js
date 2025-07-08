@@ -1,14 +1,8 @@
-// /src/lib/ui-kit/core/createComponent.js
 import {parseTemplateToVNode, bindEvents} from "./templateEngine.js";
 import {createElement, diff} from "./virtualDom.js";
 
-// Global theme object
 let GLOBAL_THEME = {};
 
-/**
- * Set global theme CSS by selector definitions or raw CSS string
- * @param {{[selector: string]: object}|string} themeObj
- */
 export function setTheme(themeObj) {
   GLOBAL_THEME = themeObj;
   if (typeof document === "undefined") return;
@@ -35,10 +29,6 @@ export function setTheme(themeObj) {
   }
 }
 
-/**
- * Creates a component with lifecycle hooks, props merging, dynamic styles, watchers, global CSS, and refs
- * @param {{ setup?: Function, template: string, components?: object, styles?: Function|object, watch?: object, mount?: Function, globalStyles?: object, props?: object }} options
- */
 export function createComponent(options) {
   const {
     setup,
@@ -51,13 +41,11 @@ export function createComponent(options) {
     mount,
   } = options;
 
-  // Map custom component tags to functions
   const componentMap = {};
   Object.entries(components).forEach(([name, Comp]) => {
     componentMap[name.toLowerCase()] = Comp;
   });
 
-  // Inject globalStyles into <head>
   if (globalStyles && typeof document !== "undefined") {
     const styleTag = document.createElement("style");
     const cssLines = [];
@@ -75,16 +63,13 @@ export function createComponent(options) {
     document.head.appendChild(styleTag);
   }
 
-  // Initialize setup data and watchers
   const initial = typeof setup === "function" ? setup(props) : {};
   const rawState = Object.assign({}, props, initial);
   const watchers = watch;
   let isMounted = false;
 
-  // Refs collection
   const refs = {};
 
-  // State proxy with watcher and re-render logic
   const state = new Proxy(rawState, {
     set(target, key, value) {
       const oldValue = target[key];
@@ -97,7 +82,6 @@ export function createComponent(options) {
     },
   });
 
-  // Expose $refs on state
   Object.defineProperty(state, "$refs", {
     get: () => refs,
   });
@@ -129,22 +113,21 @@ export function createComponent(options) {
 
   function render() {
     const newVNode = parseTemplateToVNode(template, state, componentMap);
-    if (!oldVNode) {
-      const el = createElement(newVNode);
-      container.innerHTML = "";
-      container.appendChild(el);
-      updateRefs();
-      if (typeof mount === "function" && !isMounted) {
-        mount.call(state);
-        isMounted = true;
-      }
-    } else {
-      diff(oldVNode, newVNode, container);
-      updateRefs();
+    const newEl = createElement(newVNode);
+
+    container.innerHTML = "";
+    container.appendChild(newEl);
+
+    updateRefs();
+    if (typeof mount === "function" && !isMounted) {
+      mount.call(state);
+      isMounted = true;
     }
-    oldVNode = newVNode;
+
     applyStyles();
     bindEvents(container, state);
+
+    oldVNode = newVNode;
   }
 
   render();

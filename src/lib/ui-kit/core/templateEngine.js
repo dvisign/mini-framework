@@ -1,16 +1,25 @@
-// /src/lib/ui-kit/core/templateEngine.js
 const boundEventsMap = new WeakMap();
 
-/**
- * Parses template string into a VNode tree, supporting conditional and list rendering.
- */
+function evaluateExpression(expression, scope) {
+  try {
+    const keys = Object.keys(scope);
+    const values = Object.values(scope);
+    return new Function(...keys, `return (${expression})`)(...values);
+  } catch (err) {
+    console.warn("evaluate error:", expression, err);
+    return "";
+  }
+}
+
 export function parseTemplateToVNode(template, state, components) {
   const wrapper = document.createElement("div");
   wrapper.innerHTML = template.trim();
 
   function interpolate(val, localState) {
     return typeof val === "string"
-      ? val.replace(/{{\s*(\w+)\s*}}/g, (_, key) => localState[key] ?? "")
+      ? val.replace(/{{\s*(.*?)\s*}}/g, (_, expr) =>
+          evaluateExpression(expr, localState)
+        )
       : val;
   }
 
@@ -25,7 +34,6 @@ export function parseTemplateToVNode(template, state, components) {
     if (node.hasAttribute("data-if")) {
       const expr = node.getAttribute("data-if").trim();
       try {
-        // Function으로 안전하게 표현식 평가
         const fn = new Function(...Object.keys(localState), `return (${expr})`);
         const result = fn(...Object.values(localState));
         if (!result) return undefined;
@@ -57,21 +65,19 @@ export function parseTemplateToVNode(template, state, components) {
 
     const tag = node.tagName.toLowerCase();
 
-    // **CUSTOM COMPONENT** 분기
     if (components[tag]) {
       const props = {};
       Array.from(node.attributes).forEach(({name, value}) => {
         if (name.startsWith(":")) {
           const raw = name.slice(1);
           const propName = raw.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-
           const actualValue = localState[value];
-
-          // ✅ 함수면 자동으로 localState(this)에 bind
           props[propName] =
             typeof actualValue === "function"
               ? actualValue.bind(localState)
               : actualValue;
+        } else if (name === "data-key") {
+          props.key = interpolate(value, localState);
         } else if (name !== "data-if" && name !== "data-for") {
           props[name] = interpolate(value, localState);
         }
@@ -85,10 +91,11 @@ export function parseTemplateToVNode(template, state, components) {
       return {component: components[tag], props, children};
     }
 
-    // **REGULAR ELEMENT**
     const props = {};
     Array.from(node.attributes).forEach(({name, value}) => {
-      if (name !== "data-if" && name !== "data-for") {
+      if (name === "data-key") {
+        props.key = interpolate(value, localState);
+      } else if (name !== "data-if" && name !== "data-for") {
         props[name] = interpolate(value, localState);
       }
     });
